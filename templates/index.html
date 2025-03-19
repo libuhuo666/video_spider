@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>腾讯视频VIP解析播放器</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f5f5f5;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+        .main-container {
+            max-width: 1000px;
+            margin: 30px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #007bff;
+        }
+        .player-container {
+            margin-top: 20px;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #000;
+            width: 100%;
+            height: 0;
+            padding-bottom: 56.25%;
+            position: relative;
+        }
+        .player-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .api-list {
+            margin-top: 20px;
+        }
+        .api-link {
+            margin: 5px 0;
+            display: inline-block;
+            padding: 8px 12px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .api-link:hover {
+            background-color: #e2e6ea;
+        }
+        .active-api {
+            background-color: #007bff;
+            color: white;
+        }
+        .loader {
+            text-align: center;
+            margin: 20px 0;
+            display: none;
+        }
+        .loader-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 123, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #007bff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .alert {
+            padding: 10px 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 14px;
+            color: #6c757d;
+        }
+        .example-btn {
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        .direct-link {
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        .tips-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .tips-box h5 {
+            color: #007bff;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        .tips-box ul {
+            padding-left: 20px;
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container main-container">
+        <div class="header">
+            <h1>腾讯视频VIP解析播放器</h1>
+            <p>输入腾讯视频链接，免费观看VIP视频</p>
+        </div>
+
+        <div class="row">
+            <div class="col-md-10">
+                <input type="text" id="videoUrl" class="form-control" placeholder="请输入腾讯视频链接 (例如: https://v.qq.com/x/cover/...)">
+                <div class="text-muted example-btn">
+                    <a href="#" id="exampleLinkBtn" class="text-decoration-none">示例: 点击插入示例链接</a>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <button id="parseBtn" class="btn btn-primary w-100">解析播放</button>
+                <button id="clearBtn" class="btn btn-outline-secondary w-100 mt-2">清空</button>
+            </div>
+        </div>
+
+        <div id="alertContainer"></div>
+
+        <div id="loader" class="loader">
+            <div class="loader-spinner"></div>
+            <p>正在解析视频，请稍候...</p>
+        </div>
+
+        <div id="playerContainer" class="player-container" style="display: none;"></div>
+
+        <div id="apiList" class="api-list" style="display: none;">
+            <p>如果当前线路无法播放，请尝试其他线路：</p>
+            <div id="apiLinks"></div>
+            <div class="direct-link mt-3">
+                <span class="text-muted">提示: 如果遇到问题，可以</span> 
+                <a href="#" id="directLink" target="_blank">直接打开解析链接</a>
+            </div>
+        </div>
+
+        <div class="tips-box" id="tipsBox">
+            <h5>使用小贴士：</h5>
+            <ul>
+                <li>确保输入的是腾讯视频的播放链接，例如以"v.qq.com"开头</li>
+                <li>如果当前线路无法播放，请尝试切换其他线路</li>
+                <li>部分视频可能需要等待较长时间加载，请耐心等待</li>
+                <li>如遇到视频无法播放，可尝试刷新页面或使用直接打开解析链接</li>
+                <li>最后播放的视频链接会自动保存，刷新页面不会丢失</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>声明：本工具仅供学习研究，请支持正版</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const videoUrlInput = document.getElementById('videoUrl');
+            const parseBtn = document.getElementById('parseBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const playerContainer = document.getElementById('playerContainer');
+            const apiList = document.getElementById('apiList');
+            const apiLinks = document.getElementById('apiLinks');
+            const loader = document.getElementById('loader');
+            const alertContainer = document.getElementById('alertContainer');
+            const exampleLinkBtn = document.getElementById('exampleLinkBtn');
+            const directLink = document.getElementById('directLink');
+            
+            let currentApiUrls = [];
+            let currentVideoUrl = '';
+
+            // 从本地存储加载上次的视频URL
+            const savedVideoUrl = localStorage.getItem('lastVideoUrl');
+            if (savedVideoUrl) {
+                videoUrlInput.value = savedVideoUrl;
+            }
+
+            parseBtn.addEventListener('click', parseVideo);
+            clearBtn.addEventListener('click', function() {
+                videoUrlInput.value = '';
+                playerContainer.style.display = 'none';
+                apiList.style.display = 'none';
+                alertContainer.innerHTML = '';
+            });
+
+            videoUrlInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    parseVideo();
+                }
+            });
+
+            // 设置示例链接
+            exampleLinkBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                videoUrlInput.value = 'https://v.qq.com/x/cover/mzc00200h8ee5jp/l00449lyw5f.html';
+            });
+
+            function parseVideo() {
+                const videoUrl = videoUrlInput.value.trim();
+                currentVideoUrl = videoUrl;
+                
+                if (!videoUrl) {
+                    showAlert('请输入视频链接', 'danger');
+                    return;
+                }
+
+                if (!videoUrl.includes('v.qq.com') && !videoUrl.includes('video.qq.com')) {
+                    showAlert('请输入有效的腾讯视频链接', 'danger');
+                    return;
+                }
+
+                // 保存到本地存储
+                localStorage.setItem('lastVideoUrl', videoUrl);
+
+                // 设置直接链接
+                directLink.href = '/play?url=' + encodeURIComponent(videoUrl);
+
+                // 显示加载中
+                loader.style.display = 'block';
+                playerContainer.style.display = 'none';
+                apiList.style.display = 'none';
+                apiLinks.innerHTML = '';
+                alertContainer.innerHTML = '';
+
+                // 发送解析请求
+                fetch('/parse', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: videoUrl })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    loader.style.display = 'none';
+                    
+                    if (data.success) {
+                        currentApiUrls = data.api_urls;
+                        
+                        if (currentApiUrls.length > 0) {
+                            // 显示播放器和线路选择
+                            playerContainer.style.display = 'block';
+                            apiList.style.display = 'block';
+                            
+                            // 创建API线路链接
+                            currentApiUrls.forEach((url, index) => {
+                                const apiLink = document.createElement('span');
+                                apiLink.className = 'api-link' + (index === 0 ? ' active-api' : '');
+                                apiLink.textContent = `线路 ${index + 1}`;
+                                apiLink.onclick = function() {
+                                    // 切换活跃状态
+                                    document.querySelectorAll('.api-link').forEach(link => {
+                                        link.classList.remove('active-api');
+                                    });
+                                    this.classList.add('active-api');
+                                    
+                                    // 加载新线路
+                                    loadPlayer(url);
+                                };
+                                apiLinks.appendChild(apiLink);
+                                
+                                if (index < currentApiUrls.length - 1) {
+                                    apiLinks.appendChild(document.createTextNode(' '));
+                                }
+                            });
+                            
+                            // 加载第一条线路
+                            loadPlayer(currentApiUrls[0]);
+                        } else {
+                            showAlert('未找到可用的播放线路', 'warning');
+                        }
+                    } else {
+                        showAlert(data.message || '解析失败，请检查链接是否正确', 'danger');
+                    }
+                })
+                .catch(error => {
+                    loader.style.display = 'none';
+                    showAlert('请求出错: ' + error.message, 'danger');
+                });
+            }
+
+            function loadPlayer(url) {
+                playerContainer.innerHTML = `<iframe src="${url}" frameborder="0" allowfullscreen></iframe>`;
+            }
+
+            function showAlert(message, type) {
+                alertContainer.innerHTML = `
+                    <div class="alert alert-${type}">
+                        ${message}
+                    </div>
+                `;
+            }
+            
+            // 如果有保存的URL且不为空，自动解析
+            if (savedVideoUrl && savedVideoUrl.trim() !== '') {
+                // 稍微延迟执行，确保页面已完全加载
+                setTimeout(function() {
+                    parseBtn.click();
+                }, 500);
+            }
+        });
+    </script>
+</body>
+</html> 
