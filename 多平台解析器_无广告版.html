@@ -219,6 +219,7 @@
             <button class="btn" onclick="parseVideo()">解析播放</button>
             <button class="btn btn-secondary" onclick="clearInput()">清空</button>
             <button class="btn" id="adBlockToggle" style="background-color: #28a745;">广告过滤: 已开启</button>
+            <button class="btn" id="extremeModeToggle" style="background-color: #dc3545; margin-left: 5px;">强力过滤: 关闭</button>
         </div>
 
         <div id="alertArea"></div>
@@ -230,6 +231,7 @@
                 <div>
                     <button class="overlay-btn" onclick="refreshPlayer()">刷新</button>
                     <button class="overlay-btn" onclick="toggleAdBlock()">切换广告过滤</button>
+                    <button class="overlay-btn" onclick="toggleExtremeMode()" id="overlayExtremeBtn">切换强力模式</button>
                 </div>
             </div>
             <div id="playerContainer" class="player-container"></div>
@@ -295,6 +297,7 @@
 
         // 广告过滤状态
         let adBlockEnabled = true;
+        let extremeModeEnabled = false;
         let currentApiIndex = 0;
         let adsBlocked = 0;
 
@@ -310,6 +313,11 @@
                 adBlockEnabled = false;
                 updateAdBlockButton();
             }
+            
+            if (localStorage.getItem('extremeModeEnabled') === 'true') {
+                extremeModeEnabled = true;
+                updateExtremeModeButton();
+            }
 
             // 创建API按钮
             createApiButtons();
@@ -324,6 +332,7 @@
             
             // 设置广告过滤切换按钮事件
             document.getElementById('adBlockToggle').addEventListener('click', toggleAdBlock);
+            document.getElementById('extremeModeToggle').addEventListener('click', toggleExtremeMode);
         });
 
         // 创建API按钮
@@ -380,7 +389,14 @@
             
             if (adBlockEnabled) {
                 // 使用沙箱模式创建iframe
-                playerContainer.innerHTML = `<iframe src="${api.url}${encodeURIComponent(videoUrl)}" allowfullscreen sandbox="allow-forms allow-scripts allow-same-origin allow-popups"></iframe>`;
+                let sandboxAttr = "allow-forms allow-scripts allow-same-origin allow-popups";
+                
+                // 强力模式下移除更多权限
+                if (extremeModeEnabled) {
+                    sandboxAttr = "allow-scripts allow-same-origin";
+                }
+                
+                playerContainer.innerHTML = `<iframe src="${api.url}${encodeURIComponent(videoUrl)}" allowfullscreen sandbox="${sandboxAttr}"></iframe>`;
                 
                 // 重置广告计数
                 adsBlocked = 0;
@@ -404,7 +420,8 @@
             
             // 根据模式显示不同提示
             if (adBlockEnabled) {
-                showAlert('正在使用 ' + api.name + ' 解析（无广告模式），如无法播放请尝试关闭广告过滤', 'success');
+                let modeText = extremeModeEnabled ? "极强过滤模式" : "过滤模式";
+                showAlert('正在使用 ' + api.name + ' 解析（' + modeText + '），如无法播放请调整过滤设置', 'success');
             } else {
                 showAlert('正在使用 ' + api.name + ' 解析，如无法播放请尝试其他线路', 'success');
             }
@@ -422,6 +439,11 @@
                 const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
                 if (!iframeDoc) return;
                 
+                // 极端模式会注入更强大的拦截代码
+                if (extremeModeEnabled) {
+                    injectExtremeAdBlocker(iframeDoc);
+                }
+                
                 // 添加样式来隐藏常见的广告元素
                 const style = iframeDoc.createElement('style');
                 style.textContent = `
@@ -434,7 +456,22 @@
                     [style*="bottom:0"], [style*="bottom: 0"],
                     [style*="top:0"][style*="position:fixed"],
                     iframe[src*="banner"], iframe[src*="google"], iframe[src*="cpa"], 
-                    iframe[src*="cpw"], iframe[style*="opacity:0"] {
+                    iframe[src*="cpw"], iframe[style*="opacity:0"],
+
+                    /* 暂停广告过滤规则 */
+                    [class*="pause"], [id*="pause"],
+                    .pause-ad, .paused-layer, .ad-layer,
+                    .absolute-center, .player-mask, .mask-layer,
+                    .vod-pause-ad, .vod-ad, .pause-container,
+                    [class*="pauseAd"], [id*="pauseAd"],
+                    .player-container > div:not(.player-controls),
+                    div[style*="position: absolute"][style*="z-index"],
+                    [class*="adv"], [id*="adv"],
+                    .video-ad, .video-adv,
+                    .inner-ad, .inner-adv,
+                    img[src*="ad"], img[src*="banner"],
+                    div[style*="position:absolute"][style*="opacity"],
+                    div[style*="fixed"][style*="bottom"] {
                         display: none !important;
                         visibility: hidden !important;
                         opacity: 0 !important;
@@ -444,6 +481,12 @@
                         max-height: 0 !important;
                         max-width: 0 !important;
                         overflow: hidden !important;
+                    }
+                    
+                    /* 防止广告遮挡视频内容 */
+                    video {
+                        z-index: 999999 !important;
+                        position: relative !important;
                     }
                 `;
                 iframeDoc.head.appendChild(style);
@@ -457,7 +500,19 @@
                     'div[style*="z-index:"][style*="position: fixed"]',
                     'div[style*="position: fixed"]',
                     'div[style*="bottom:0"]',
-                    'iframe:not([src*="player"])'
+                    'iframe:not([src*="player"])',
+                    
+                    // 暂停广告选择器
+                    '[class*="pause"]', '[id*="pause"]',
+                    '.pause-ad', '.paused-layer', '.ad-layer',
+                    '.absolute-center', '.player-mask', '.mask-layer',
+                    '.vod-pause-ad', '.vod-ad', '.pause-container',
+                    '[class*="pauseAd"]', '[id*="pauseAd"]',
+                    '[class*="adv"]', '[id*="adv"]',
+                    '.video-ad', '.video-adv',
+                    '.inner-ad', '.inner-adv',
+                    'img[src*="ad"]', 'img[src*="banner"]',
+                    'div[style*="position:absolute"][style*="opacity"]'
                 ];
                 
                 let removedCount = 0;
@@ -472,16 +527,297 @@
                     });
                 });
                 
+                // 监视视频元素，处理暂停广告
+                const videoElements = iframeDoc.querySelectorAll('video');
+                videoElements.forEach(video => {
+                    // 已经处理过的视频不再添加事件
+                    if (video.getAttribute('ad-listener') === 'true') return;
+                    
+                    // 标记视频已处理
+                    video.setAttribute('ad-listener', 'true');
+                    
+                    // 为视频元素添加暂停事件监听器
+                    video.addEventListener('pause', function() {
+                        // 在播放器上显示暂停提示
+                        showAdBlockStatus("检测到暂停，正在移除广告...");
+                        
+                        // 暂停后立即执行广告清理
+                        setTimeout(() => removePauseAds(iframeDoc), 50);
+                        // 连续多次检查，确保广告被移除
+                        setTimeout(() => removePauseAds(iframeDoc), 300);
+                        setTimeout(() => removePauseAds(iframeDoc), 1000);
+                    });
+                    
+                    // 同样在播放时也清理一次广告
+                    video.addEventListener('play', function() {
+                        showAdBlockStatus("视频播放中，广告过滤器已启用");
+                        setTimeout(() => removePauseAds(iframeDoc), 100);
+                    });
+                });
+                
                 if (removedCount > 0) {
                     adsBlocked += removedCount;
                     document.getElementById('ad-stats').textContent = `已拦截 ${adsBlocked} 个广告元素`;
                 }
+                
+                // 防止广告定时器和加载器
+                cleanTimers(iframeDoc);
                 
                 // 持续监控和移除广告
                 setTimeout(removeAdsFromIframe, 2000);
             } catch (e) {
                 // 可能是跨域限制，忽略错误
                 console.log('无法访问iframe内容，可能是跨域限制');
+            }
+        }
+        
+        // 移除暂停广告的专用函数
+        function removePauseAds(doc) {
+            try {
+                // 暂停广告通常是绝对定位于视频上方的元素
+                const pauseAdSelectors = [
+                    '[class*="pause"]', '[id*="pause"]',
+                    '.pause-ad', '.paused-layer', '.ad-layer',
+                    '.absolute-center', '.player-mask', '.mask-layer',
+                    '.vod-pause-ad', '.vod-ad', '.pause-container',
+                    '[class*="pauseAd"]', '[id*="pauseAd"]',
+                    'div[style*="position:absolute"][style*="display:block"]',
+                    'div[style*="position: absolute"][style*="display: block"]',
+                    'div[style*="position:absolute"][style*="opacity: 1"]',
+                    'div[style*="position: absolute"][style*="opacity: 1"]',
+                    // 播放器中间出现的元素多为广告
+                    'div[style*="top: 50%"][style*="left: 50%"]'
+                ];
+                
+                pauseAdSelectors.forEach(selector => {
+                    const elements = doc.querySelectorAll(selector);
+                    elements.forEach(el => {
+                        if (el && el.parentNode) {
+                            // 检查元素是否包含图片或iframe，这通常是广告内容
+                            if (el.querySelector('img') || el.querySelector('iframe') || 
+                                el.style.backgroundImage || el.className.includes('ad') || 
+                                el.id.includes('ad')) {
+                                el.style.display = 'none';
+                                el.style.visibility = 'hidden';
+                                el.style.opacity = '0';
+                                el.style.pointerEvents = 'none';
+                                el.style.width = '0';
+                                el.style.height = '0';
+                                adsBlocked++;
+                            }
+                        }
+                    });
+                });
+                
+                // 对于那些无法移除的元素，可以尝试使其透明
+                doc.querySelectorAll('div[style*="position:absolute"], div[style*="position: absolute"]').forEach(el => {
+                    const rect = el.getBoundingClientRect();
+                    // 如果元素位于中央且较大，可能是广告
+                    if (rect.width > 100 && rect.height > 100) {
+                        const centerX = window.innerWidth / 2;
+                        const centerY = window.innerHeight / 2;
+                        
+                        // 检查元素是否在屏幕中央
+                        const elCenterX = rect.left + rect.width / 2;
+                        const elCenterY = rect.top + rect.height / 2;
+                        
+                        // 如果元素中心点接近屏幕中心，可能是暂停广告
+                        if (Math.abs(elCenterX - centerX) < 150 && Math.abs(elCenterY - centerY) < 150) {
+                            el.style.display = 'none';
+                            el.style.visibility = 'hidden';
+                            el.style.opacity = '0';
+                            adsBlocked++;
+                        }
+                    }
+                });
+                
+                document.getElementById('ad-stats').textContent = `已拦截 ${adsBlocked} 个广告元素`;
+            } catch (e) {
+                // 忽略错误
+            }
+        }
+        
+        // 清理可能导致广告加载的定时器
+        function cleanTimers(doc) {
+            try {
+                // 在iframe内执行脚本清除所有定时器
+                const script = doc.createElement('script');
+                script.textContent = `
+                    // 清除所有定时器
+                    (function() {
+                        for (let i = 0; i < 10000; i++) {
+                            clearTimeout(i);
+                            clearInterval(i);
+                        }
+                        
+                        // 重写定时器函数，阻止新广告加载
+                        const originalSetTimeout = window.setTimeout;
+                        window.setTimeout = function(fn, delay) {
+                            if (typeof fn === 'function' && fn.toString().includes('ad')) {
+                                // 阻止广告相关定时器
+                                return 0;
+                            }
+                            return originalSetTimeout.apply(this, arguments);
+                        };
+                        
+                        const originalSetInterval = window.setInterval;
+                        window.setInterval = function(fn, delay) {
+                            if (typeof fn === 'function' && fn.toString().includes('ad')) {
+                                // 阻止广告相关定时器
+                                return 0;
+                            }
+                            return originalSetInterval.apply(this, arguments);
+                        };
+                        
+                        ${extremeModeEnabled ? `
+                        // 极端模式下，重写广告相关函数
+                        // 覆盖常见的广告函数
+                        window.showAd = function() { return false; };
+                        window.showPauseAd = function() { return false; };
+                        window.displayAd = function() { return false; };
+                        window.createAd = function() { return false; };
+                        window.loadAd = function() { return false; };
+                        
+                        // 移除可能的全局广告对象
+                        window.adConfig = null;
+                        window.adOption = null;
+                        window.adOptions = null;
+                        window.adContainer = null;
+                        window.adElement = null;
+                        window.pauseAdEnabled = false;
+                        ` : ''}
+                    })();
+                `;
+                doc.head.appendChild(script);
+            } catch (e) {
+                // 忽略错误
+            }
+        }
+        
+        // 极端模式的广告拦截
+        function injectExtremeAdBlocker(doc) {
+            try {
+                // 创建一个脚本标签，注入极端的广告拦截代码
+                const script = doc.createElement('script');
+                script.textContent = `
+                    (function() {
+                        // 保存原始函数
+                        const _appendChild = Element.prototype.appendChild;
+                        const _insertBefore = Element.prototype.insertBefore;
+                        const _setAttribute = Element.prototype.setAttribute;
+                        
+                        // 覆盖appendChild方法
+                        Element.prototype.appendChild = function(element) {
+                            // 检查是否是广告元素
+                            if (isAdElement(element)) {
+                                // 阻止广告元素的添加
+                                return element;
+                            }
+                            // 正常行为
+                            return _appendChild.call(this, element);
+                        };
+                        
+                        // 覆盖insertBefore方法
+                        Element.prototype.insertBefore = function(element, reference) {
+                            // 检查是否是广告元素
+                            if (isAdElement(element)) {
+                                // 阻止广告元素的添加
+                                return element;
+                            }
+                            // 正常行为
+                            return _insertBefore.call(this, element, reference);
+                        };
+                        
+                        // 覆盖setAttribute方法，阻止暂停相关的属性设置
+                        Element.prototype.setAttribute = function(name, value) {
+                            // 阻止视频暂停
+                            if (this.tagName === 'VIDEO' && name === 'paused') {
+                                return;
+                            }
+                            // 阻止视频静音
+                            if (this.tagName === 'VIDEO' && name === 'muted' && value === true) {
+                                return;
+                            }
+                            // 正常行为
+                            return _setAttribute.call(this, name, value);
+                        };
+                        
+                        // 检查元素是否为广告元素
+                        function isAdElement(element) {
+                            // 检查标签类型
+                            if (element.tagName === 'IFRAME' || element.tagName === 'DIV' || element.tagName === 'IMG') {
+                                // 检查id、类名和属性
+                                const id = element.id || '';
+                                const className = element.className || '';
+                                const src = element.src || '';
+                                
+                                // 检查是否包含广告关键词
+                                if (id.toLowerCase().includes('ad') || 
+                                    className.toLowerCase().includes('ad') ||
+                                    src.toLowerCase().includes('ad') ||
+                                    id.toLowerCase().includes('pause') ||
+                                    className.toLowerCase().includes('pause') ||
+                                    id.toLowerCase().includes('popup') ||
+                                    className.toLowerCase().includes('popup') ||
+                                    id.toLowerCase().includes('float') ||
+                                    className.toLowerCase().includes('float')) {
+                                    return true;
+                                }
+                                
+                                // 检查样式
+                                if (element.style) {
+                                    const position = element.style.position || '';
+                                    const zIndex = element.style.zIndex || '';
+                                    if ((position === 'fixed' || position === 'absolute') && parseInt(zIndex) > 100) {
+                                        return true;
+                                    }
+                                }
+                            }
+                            return false;
+                        }
+                        
+                        // 监听DOM变化
+                        const observer = new MutationObserver(function(mutations) {
+                            for (let mutation of mutations) {
+                                if (mutation.type === 'childList') {
+                                    for (let node of mutation.addedNodes) {
+                                        if (node.nodeType === 1) { // Element节点
+                                            if (isAdElement(node) && node.parentNode) {
+                                                node.parentNode.removeChild(node);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        // 启动观察器
+                        observer.observe(document.body, {
+                            childList: true,
+                            subtree: true
+                        });
+                        
+                        // 阻止视频暂停
+                        const videoElements = document.querySelectorAll('video');
+                        videoElements.forEach(video => {
+                            // 覆盖pause方法，防止暂停时显示广告
+                            const originalPause = video.pause;
+                            video.pause = function() {
+                                // 检查是否是用户暂停
+                                const userInitiated = document.activeElement === video || 
+                                                      document.activeElement.tagName === 'BUTTON';
+                                
+                                // 如果是用户暂停，允许暂停，否则阻止
+                                if (userInitiated) {
+                                    return originalPause.apply(this, arguments);
+                                }
+                            };
+                        });
+                    })();
+                `;
+                doc.head.appendChild(script);
+            } catch (e) {
+                console.log('无法注入极端广告拦截器:', e);
             }
         }
 
@@ -493,6 +829,18 @@
             
             // 如果当前正在播放，重新加载播放器
             if (document.getElementById('playerWrapper').style.display !== 'none') {
+                parseWithApi(currentApiIndex);
+            }
+        }
+        
+        // 切换极端模式
+        function toggleExtremeMode() {
+            extremeModeEnabled = !extremeModeEnabled;
+            localStorage.setItem('extremeModeEnabled', extremeModeEnabled);
+            updateExtremeModeButton();
+            
+            // 如果当前正在播放且广告过滤已开启，重新加载播放器
+            if (document.getElementById('playerWrapper').style.display !== 'none' && adBlockEnabled) {
                 parseWithApi(currentApiIndex);
             }
         }
@@ -513,6 +861,36 @@
             } else {
                 button.textContent = '广告过滤: 已关闭';
                 button.style.backgroundColor = '#6c757d';
+            }
+        }
+        
+        // 更新极端模式按钮状态
+        function updateExtremeModeButton() {
+            const button = document.getElementById('extremeModeToggle');
+            const overlayBtn = document.getElementById('overlayExtremeBtn');
+            
+            if (extremeModeEnabled) {
+                button.textContent = '强力过滤: 开启';
+                button.style.backgroundColor = '#dc3545';
+                
+                if (overlayBtn) {
+                    overlayBtn.textContent = '关闭强力模式';
+                    overlayBtn.style.borderColor = '#dc3545';
+                }
+                
+                showAdBlockStatus("极强过滤模式已启用");
+            } else {
+                button.textContent = '强力过滤: 关闭';
+                button.style.backgroundColor = '#6c757d';
+                
+                if (overlayBtn) {
+                    overlayBtn.textContent = '开启强力模式';
+                    overlayBtn.style.borderColor = '';
+                }
+                
+                if (adBlockEnabled) {
+                    showAdBlockStatus("普通过滤模式已启用");
+                }
             }
         }
 
@@ -551,6 +929,20 @@
                 return VIDEO_SITES.some(site => hostname.includes(site));
             } catch (e) {
                 return false;
+            }
+        }
+
+        // 显示广告过滤状态
+        function showAdBlockStatus(message) {
+            const overlayControls = document.getElementById('overlay-controls');
+            if (overlayControls && overlayControls.firstElementChild) {
+                overlayControls.firstElementChild.textContent = message;
+                
+                // 短暂显示控制栏
+                overlayControls.style.opacity = '1';
+                setTimeout(() => {
+                    overlayControls.style.opacity = '';
+                }, 2000);
             }
         }
     </script>
