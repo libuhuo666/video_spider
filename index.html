@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全网VIP视频解析器</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #007bff;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background-color: #0069d9;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+        .player-container {
+            margin-top: 20px;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #000;
+            width: 100%;
+            height: 0;
+            padding-bottom: 56.25%;
+            position: relative;
+        }
+        .player-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .api-list {
+            margin-top: 20px;
+        }
+        .api-btn {
+            margin: 5px;
+            padding: 8px 12px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f8f9fa;
+            cursor: pointer;
+        }
+        .api-btn.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        .alert {
+            padding: 10px 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            color: #721c24;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
+        .alert-success {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 14px;
+            color: #6c757d;
+        }
+        .tips {
+            margin-top: 20px;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .example-link {
+            cursor: pointer;
+            color: #007bff;
+            text-decoration: underline;
+        }
+        .button-group {
+            margin: 10px 0;
+        }
+        .platform-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .platform-badge {
+            padding: 5px 10px;
+            background-color: #e9ecef;
+            border-radius: 20px;
+            font-size: 13px;
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>全网VIP视频解析器</h1>
+            <p>免费观看各大视频平台VIP内容，无需下载，直接在线播放</p>
+            <div class="platform-list">
+                <span class="platform-badge">腾讯视频</span>
+                <span class="platform-badge">爱奇艺</span>
+                <span class="platform-badge">优酷</span>
+                <span class="platform-badge">芒果TV</span>
+                <span class="platform-badge">搜狐视频</span>
+                <span class="platform-badge">哔哩哔哩</span>
+                <span class="platform-badge">乐视视频</span>
+                <span class="platform-badge">PPTV</span>
+                <span class="platform-badge">1905电影网</span>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <input type="text" id="videoUrl" placeholder="请输入视频链接 (例如: https://v.qq.com/x/cover/... 或 https://www.iqiyi.com/v_...)">
+            <div style="margin-top: 5px; font-size: 14px; color: #666;">
+                <span class="example-link" onclick="insertExample('tencent')">腾讯示例</span> | 
+                <span class="example-link" onclick="insertExample('iqiyi')">爱奇艺示例</span> | 
+                <span class="example-link" onclick="insertExample('youku')">优酷示例</span> | 
+                <span class="example-link" onclick="insertExample('mgtv')">芒果TV示例</span>
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn" onclick="parseVideo()">解析播放</button>
+            <button class="btn btn-secondary" onclick="clearInput()">清空</button>
+        </div>
+
+        <div id="alertArea"></div>
+
+        <div id="playerContainer" class="player-container" style="display: none;"></div>
+
+        <div id="apiList" class="api-list" style="display: none;">
+            <p>如果当前线路无法播放，请尝试切换其他线路：</p>
+            <div id="apiButtons"></div>
+        </div>
+
+        <div class="tips">
+            <h3>使用提示：</h3>
+            <ul>
+                <li>支持各大主流视频网站的VIP视频解析</li>
+                <li>如果当前线路无法播放，请尝试切换其他线路</li>
+                <li>部分视频可能需要较长时间加载，请耐心等待</li>
+                <li>最新上线的视频可能暂时无法解析，请稍后再试</li>
+                <li>本工具不会收集任何个人信息，可以放心使用</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>免责声明：本工具仅供学习研究使用，请支持正版</p>
+        </div>
+    </div>
+
+    <script>
+        // 解析接口列表
+        const API_LIST = [
+            { name: "线路1", url: "https://jx.m3u8.tv/jiexi/?url=" },
+            { name: "线路2", url: "https://jx.jsonplayer.com/player/?url=" },
+            { name: "线路3", url: "https://jx.aidouer.net/?url=" },
+            { name: "线路4", url: "https://jx.bozrc.com:4433/player/?url=" },
+            { name: "线路5", url: "https://www.ckmov.vip/api.php?url=" },
+            { name: "线路6", url: "https://www.8090g.cn/?url=" },
+            { name: "线路7", url: "https://www.playm3u8.cn/jiexi.php?url=" },
+            { name: "线路8", url: "https://api.jiexi.la/?url=" },
+            { name: "线路9", url: "https://jx.playerjy.com/?url=" },
+            { name: "线路10", url: "https://jx.quanmingjiexi.com/?url=" }
+        ];
+
+        // 示例链接
+        const EXAMPLE_LINKS = {
+            tencent: "https://v.qq.com/x/cover/mzc00200h8ee5jp/l00449lyw5f.html",
+            iqiyi: "https://www.iqiyi.com/v_19rr7pi4k4.html",
+            youku: "https://v.youku.com/v_show/id_XNDYxNTA3MTUwMA==.html",
+            mgtv: "https://www.mgtv.com/b/336636/8355191.html"
+        };
+
+        // 视频网站域名
+        const VIDEO_SITES = [
+            "v.qq.com", "video.qq.com",
+            "iqiyi.com", "www.iqiyi.com",
+            "youku.com", "v.youku.com",
+            "mgtv.com", "www.mgtv.com",
+            "bilibili.com", "www.bilibili.com",
+            "tv.sohu.com", "film.sohu.com",
+            "le.com", "www.le.com",
+            "pptv.com", "www.pptv.com",
+            "1905.com", "www.1905.com"
+        ];
+
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 从本地存储加载上次的视频URL
+            const savedUrl = localStorage.getItem('lastVideoUrl');
+            if (savedUrl) {
+                document.getElementById('videoUrl').value = savedUrl;
+            }
+
+            // 创建API按钮
+            createApiButtons();
+
+            // 检查参数中是否有URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlFromParam = urlParams.get('url');
+            if (urlFromParam) {
+                document.getElementById('videoUrl').value = urlFromParam;
+                parseVideo();
+            }
+        });
+
+        // 创建API按钮
+        function createApiButtons() {
+            const apiButtonsContainer = document.getElementById('apiButtons');
+            apiButtonsContainer.innerHTML = '';
+            
+            API_LIST.forEach((api, index) => {
+                const button = document.createElement('button');
+                button.textContent = api.name;
+                button.className = 'api-btn';
+                button.setAttribute('data-index', index);
+                button.addEventListener('click', function() {
+                    parseWithApi(index);
+                });
+                apiButtonsContainer.appendChild(button);
+            });
+        }
+
+        // 解析视频
+        function parseVideo() {
+            const videoUrl = document.getElementById('videoUrl').value.trim();
+            
+            if (!videoUrl) {
+                showAlert('请输入视频链接', 'error');
+                return;
+            }
+
+            // 验证URL是否来自支持的视频网站
+            if (!isValidVideoUrl(videoUrl)) {
+                showAlert('请输入正确的视频网站链接', 'error');
+                return;
+            }
+
+            // 保存到本地存储
+            localStorage.setItem('lastVideoUrl', videoUrl);
+            
+            // 默认使用第一个API
+            parseWithApi(0);
+        }
+
+        // 使用指定API解析
+        function parseWithApi(apiIndex) {
+            const videoUrl = document.getElementById('videoUrl').value.trim();
+            const api = API_LIST[apiIndex];
+            
+            // 显示播放器
+            document.getElementById('playerContainer').style.display = 'block';
+            document.getElementById('apiList').style.display = 'block';
+            
+            // 创建iframe
+            const playerContainer = document.getElementById('playerContainer');
+            playerContainer.innerHTML = `<iframe src="${api.url}${encodeURIComponent(videoUrl)}" allowfullscreen></iframe>`;
+            
+            // 标记当前活跃API
+            document.querySelectorAll('.api-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (parseInt(btn.getAttribute('data-index')) === apiIndex) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            showAlert('正在使用 ' + api.name + ' 解析，如无法播放请尝试其他线路', 'success');
+            
+            // 滚动到播放器位置
+            playerContainer.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // 插入示例链接
+        function insertExample(platform) {
+            document.getElementById('videoUrl').value = EXAMPLE_LINKS[platform];
+        }
+
+        // 清空输入和播放器
+        function clearInput() {
+            document.getElementById('videoUrl').value = '';
+            document.getElementById('playerContainer').style.display = 'none';
+            document.getElementById('playerContainer').innerHTML = '';
+            document.getElementById('apiList').style.display = 'none';
+            document.getElementById('alertArea').innerHTML = '';
+        }
+
+        // 显示提示信息
+        function showAlert(message, type) {
+            const alertArea = document.getElementById('alertArea');
+            alertArea.innerHTML = `<div class="alert ${type === 'success' ? 'alert-success' : ''}">${message}</div>`;
+            
+            // 3秒后自动消失
+            setTimeout(() => {
+                alertArea.innerHTML = '';
+            }, 5000);
+        }
+
+        // 验证URL是否来自支持的视频网站
+        function isValidVideoUrl(url) {
+            try {
+                const urlObj = new URL(url);
+                const hostname = urlObj.hostname;
+                
+                return VIDEO_SITES.some(site => hostname.includes(site));
+            } catch (e) {
+                return false;
+            }
+        }
+    </script>
+</body>
+</html> 
