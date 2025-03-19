@@ -212,6 +212,14 @@
             { name: "线路10", url: "https://jx.quanmingjiexi.com/?url=" }
         ];
 
+        // 代理服务器URL - 部署后替换为实际URL，本地测试用localhost
+        const PROXY_SERVER = location.hostname === 'localhost' || location.hostname === '127.0.0.1' 
+                             ? '' // 本地开发环境
+                             : 'https://your-proxy-server-url.com'; // 这里稍后需要替换为实际部署的URL
+
+        // 是否使用代理服务器（无广告模式）
+        let useProxyServer = localStorage.getItem('useProxyServer') === 'true';
+
         // 示例链接
         const EXAMPLE_LINKS = {
             tencent: "https://v.qq.com/x/cover/mzc00200h8ee5jp/l00449lyw5f.html",
@@ -235,11 +243,14 @@
 
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', function() {
-            // 从本地存储加载上次的视频URL
+            // 从本地存储加载上次的视频URL和代理设置
             const savedUrl = localStorage.getItem('lastVideoUrl');
             if (savedUrl) {
                 document.getElementById('videoUrl').value = savedUrl;
             }
+
+            // 加载代理服务器设置
+            updateProxyToggleButton();
 
             // 创建API按钮
             createApiButtons();
@@ -303,7 +314,16 @@
             
             // 创建iframe
             const playerContainer = document.getElementById('playerContainer');
-            playerContainer.innerHTML = `<iframe src="${api.url}${encodeURIComponent(videoUrl)}" allowfullscreen></iframe>`;
+            
+            if (useProxyServer && PROXY_SERVER) {
+                // 使用代理服务器（无广告模式）
+                playerContainer.innerHTML = `<iframe src="${PROXY_SERVER}/play?url=${encodeURIComponent(videoUrl)}&api=${encodeURIComponent(api.url)}" allowfullscreen></iframe>`;
+                showAlert('正在使用 ' + api.name + ' 解析 (无广告模式)，如无法播放请尝试其他线路', 'success');
+            } else {
+                // 使用原始解析API（可能有广告）
+                playerContainer.innerHTML = `<iframe src="${api.url}${encodeURIComponent(videoUrl)}" allowfullscreen></iframe>`;
+                showAlert('正在使用 ' + api.name + ' 解析，如无法播放请尝试其他线路', 'success');
+            }
             
             // 标记当前活跃API
             document.querySelectorAll('.api-btn').forEach(btn => {
@@ -312,8 +332,6 @@
                     btn.classList.add('active');
                 }
             });
-            
-            showAlert('正在使用 ' + api.name + ' 解析，如无法播放请尝试其他线路', 'success');
             
             // 滚动到播放器位置
             playerContainer.scrollIntoView({ behavior: 'smooth' });
@@ -353,6 +371,37 @@
                 return VIDEO_SITES.some(site => hostname.includes(site));
             } catch (e) {
                 return false;
+            }
+        }
+
+        // 添加代理服务器切换按钮
+        function updateProxyToggleButton() {
+            // 检查是否已经存在按钮
+            if (!document.getElementById('proxyToggle')) {
+                const buttonGroup = document.querySelector('.button-group');
+                
+                const toggleButton = document.createElement('button');
+                toggleButton.id = 'proxyToggle';
+                toggleButton.className = 'btn ' + (useProxyServer ? 'btn-primary' : 'btn-secondary');
+                toggleButton.textContent = useProxyServer ? '无广告模式: 开' : '无广告模式: 关';
+                toggleButton.style.marginLeft = '10px';
+                
+                toggleButton.addEventListener('click', function() {
+                    useProxyServer = !useProxyServer;
+                    localStorage.setItem('useProxyServer', useProxyServer);
+                    toggleButton.textContent = useProxyServer ? '无广告模式: 开' : '无广告模式: 关';
+                    toggleButton.className = 'btn ' + (useProxyServer ? 'btn-primary' : 'btn-secondary');
+                    
+                    // 如果当前正在播放，则重新加载当前线路
+                    if (document.getElementById('playerContainer').style.display !== 'none') {
+                        const activeBtn = document.querySelector('.api-btn.active');
+                        if (activeBtn) {
+                            parseWithApi(parseInt(activeBtn.getAttribute('data-index')));
+                        }
+                    }
+                });
+                
+                buttonGroup.appendChild(toggleButton);
             }
         }
     </script>
